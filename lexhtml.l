@@ -11,49 +11,64 @@ unsigned currentcharcount = 0;
 unsigned lines = 1;
 
 void printtabs();
+void printtag(const char*);
 void handlecurrentcharcount();
 %}
 
 %option noyywrap
 %x 								TEXT
 %x 								COMMENT
+%x								STYLETAG
 
 whitespaces            			[ \t\n]+
 letter                 			[a-z]
 upercaseletters        			[A-Z]
 number                 			[0-9]
 char                   			.+
-parenttags             			html|head|style|title|h[1-6]|body|p|b|i|table|tr|th|td|ul|li|a
-childlesstags          			br|img|!DOCTYPE
-attrs                  			{letter}+[{number}{letter}]*(=\".*\")?
+parenttags             			html|head|title|h[1-6]|body|p|b|i|table|tr|th|td|ul|li|a
+childlesstags          			br|img
+attrs                  			{letter}+[{number}{letter}]*=\".*\"
 opentag                			\<{parenttags}(" "{attrs}*)?\>
 closetag               			<\/{parenttags}\>
 childlesstag           			\<{childlesstags}(" "{attrs}*)?\>
 
 %%
-"<!--"							{ BEGIN COMMENT; }
-<COMMENT>\n						{ lines++; }
-<COMMENT>"-->"					{ BEGIN INITIAL; }
-<COMMENT>.						{ ; }
-[ \t]                           { ; }
-\n                              { lines++; }
-{opentag}                       { printtabs(); cout << YYText() << endl; tabs++; charcount += YYLeng(); }
-{closetag}                      { tags++; tabs--; charcount += YYLeng(); printtabs(); cout << YYText() << endl; }
-{childlesstag}                  { printtabs(); cout << YYText() << endl; tags++; charcount += YYLeng(); }
-.                               { BEGIN TEXT; currentcharcount++; }
-<TEXT>{opentag}					{ yyless(0); handlecurrentcharcount(); BEGIN INITIAL; }
-<TEXT>{closetag}				{ yyless(0); handlecurrentcharcount(); BEGIN INITIAL; }
-<TEXT>{childlesstag}			{ yyless(0); handlecurrentcharcount(); BEGIN INITIAL; }
-<TEXT>"<!--"					{ yyless(0); BEGIN INITIAL; }
-<TEXT>\n						{ lines++; }
-<TEXT>.							{ currentcharcount++; charcount++; }
+
+"<DOCTYPE html>"											{ ; }
+
+<COMMENT,STYLETAG,INITIAL>\n								{ lines++; }
+
+"<!--"														{ BEGIN COMMENT; }
+<COMMENT>.													{ ; }
+<COMMENT>"-->"												{ BEGIN INITIAL; }
+
+"<style>"													{ BEGIN STYLETAG; printtag(YYText()); }
+<STYLETAG>.													{ ; }
+<STYLETAG>"</style>"										{ BEGIN INITIAL; printtag(YYText()); }
+
+[ \t]                           							{ ; }
+
+{opentag}                       							{ printtag(YYText()); tabs++; }
+{closetag}                      							{ tags++; tabs--; printtag(YYText()); }
+{childlesstag}                  							{ printtag(YYText()); tags++; }
+
+.                               							{ BEGIN TEXT; currentcharcount++; charcount++; }
+<TEXT>{opentag}|{closetag}|{childlesstag}					{ yyless(0); handlecurrentcharcount(); BEGIN INITIAL; }
+<TEXT>"<!--"												{ yyless(0); BEGIN INITIAL; }
+<TEXT>\n													{ lines++; handlecurrentcharcount(); }
+<TEXT>.														{ currentcharcount++; charcount++; }
+
 %%
+
+void printtag(const char* tag) {
+	printtabs(); cout << tag << endl;
+}
 
 void handlecurrentcharcount() {
 	printtabs();
 	cout << "Texto[" << currentcharcount << ']' << endl;
 	currentcharcount = 0;
-	}
+}
 
 void printtabs() {
     for (int i = 0; i < tabs; i++) {
@@ -67,6 +82,7 @@ int main(int argc, char ** argv)
 {
 	yyFlexLexer lexer;
 	ifstream fin;
+	ofstream fout;
 
 	if (argc > 1) 
 	{    
@@ -85,9 +101,9 @@ int main(int argc, char ** argv)
 
 	lexer.yylex();
 
-	cout << endl << "TAGS: " << tags << endl;
-	cout << "CHARS: " << charcount << endl;
-	cout << "LINES: " << lines << endl;
+	cout << endl << "TAGS HTML: " << tags << endl;
+	cout << "Linhas: " << lines << endl;
+	cout << "Caracteres: " << charcount << endl;
     
 	fin.close();
 	return 0;
