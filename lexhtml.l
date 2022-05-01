@@ -34,19 +34,23 @@ childlesstag           			\<{childlesstags}(" "{attrs}*)?\>
 
 %%
 
-"<DOCTYPE html>"											{ ; }
+"<!DOCTYPE html>"											{ ; }
 
 <COMMENT,STYLETAG,INITIAL>\n								{ lines++; }
 
 "<!--"														{ BEGIN COMMENT; }
-<COMMENT>.													{ ; }
 <COMMENT>"-->"												{ BEGIN INITIAL; }
+<COMMENT>.													{ ; }
 
 "<style>"													{ BEGIN STYLETAG; printtag(YYText()); }
-<STYLETAG>.													{ ; }
 <STYLETAG>"</style>"										{ BEGIN INITIAL; printtag(YYText()); }
+<STYLETAG>.													{ ; }
 
 [ \t]                           							{ ; }
+
+{opentag}/" "												{ printtag(YYText()); tabs++; BEGIN TEXT; }
+{closetag}/" "												{ tags++; tabs--; printtag(YYText()); BEGIN TEXT; }
+{childlesstag}/" "                  						{ printtag(YYText()); tags++; BEGIN TEXT; }
 
 {opentag}                       							{ printtag(YYText()); tabs++; }
 {closetag}                      							{ tags++; tabs--; printtag(YYText()); }
@@ -61,7 +65,8 @@ childlesstag           			\<{childlesstags}(" "{attrs}*)?\>
 %%
 
 void printtag(const char* tag) {
-	printtabs(); cout << tag << endl;
+	printtabs(); 
+	cout << tag << endl;
 }
 
 void handlecurrentcharcount() {
