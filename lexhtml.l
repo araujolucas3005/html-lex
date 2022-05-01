@@ -15,35 +15,45 @@ void handlecurrentcharcount();
 %}
 
 %option noyywrap
+%x 								TEXT
+%x 								COMMENT
 
-whitespaces            [ \t\n]+
-letter                 [a-z]
-upercaseletters        [A-Z]
-number                 [0-9]
-char                   .+
-parenttags             html|head|style|title|h[1-6]|body|p|b|i|table|tr|th|td|ul|li|a
-childlesstags          br|img
-attrs                  {letter}+[{number}{letter}]*=\".*\"
-opentag                \<{parenttags}(" "{attrs}*)?\>
-closetag               <\/{parenttags}\>
-childlesstag           \<{childlesstags}(" "{attrs}*)?\>
+whitespaces            			[ \t\n]+
+letter                 			[a-z]
+upercaseletters        			[A-Z]
+number                 			[0-9]
+char                   			.+
+parenttags             			html|head|style|title|h[1-6]|body|p|b|i|table|tr|th|td|ul|li|a
+childlesstags          			br|img|!DOCTYPE
+attrs                  			{letter}+[{number}{letter}]*(=\".*\")?
+opentag                			\<{parenttags}(" "{attrs}*)?\>
+closetag               			<\/{parenttags}\>
+childlesstag           			\<{childlesstags}(" "{attrs}*)?\>
 
 %%
+"<!--"							{ BEGIN COMMENT; }
+<COMMENT>\n						{ lines++; }
+<COMMENT>"-->"					{ BEGIN INITIAL; }
+<COMMENT>.						{ ; }
 [ \t]                           { ; }
 \n                              { lines++; }
-{opentag}                       { handlecurrentcharcount(); printtabs(); cout << YYText() << endl; tabs++; charcount += YYLeng(); }
-{closetag}                      { tags++; handlecurrentcharcount(); tabs--; charcount += YYLeng(); printtabs(); cout << YYText() << endl; }
-{childlesstag}                  { handlecurrentcharcount(); printtabs(); cout << YYText() << endl; tags++; charcount += YYLeng();  }
-.                               { currentcharcount++; }
+{opentag}                       { printtabs(); cout << YYText() << endl; tabs++; charcount += YYLeng(); }
+{closetag}                      { tags++; tabs--; charcount += YYLeng(); printtabs(); cout << YYText() << endl; }
+{childlesstag}                  { printtabs(); cout << YYText() << endl; tags++; charcount += YYLeng(); }
+.                               { BEGIN TEXT; currentcharcount++; }
+<TEXT>{opentag}					{ yyless(0); handlecurrentcharcount(); BEGIN INITIAL; }
+<TEXT>{closetag}				{ yyless(0); handlecurrentcharcount(); BEGIN INITIAL; }
+<TEXT>{childlesstag}			{ yyless(0); handlecurrentcharcount(); BEGIN INITIAL; }
+<TEXT>"<!--"					{ yyless(0); BEGIN INITIAL; }
+<TEXT>\n						{ lines++; }
+<TEXT>.							{ currentcharcount++; charcount++; }
 %%
 
 void handlecurrentcharcount() {
-    if (currentcharcount > 0) {
-        printtabs();
-        cout << "Texto[" << currentcharcount << ']' << endl;
-        currentcharcount = 0;
-    }
-}
+	printtabs();
+	cout << "Texto[" << currentcharcount << ']' << endl;
+	currentcharcount = 0;
+	}
 
 void printtabs() {
     for (int i = 0; i < tabs; i++) {
@@ -74,6 +84,10 @@ int main(int argc, char ** argv)
 	}
 
 	lexer.yylex();
+
+	cout << endl << "TAGS: " << tags << endl;
+	cout << "CHARS: " << charcount << endl;
+	cout << "LINES: " << lines << endl;
     
 	fin.close();
 	return 0;
