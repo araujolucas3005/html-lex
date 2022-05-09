@@ -4,37 +4,40 @@
 #include <fstream>
 using namespace std;
 
-unsigned tabs = 0;
-unsigned tags = 0;
-unsigned charcount = 0;
-unsigned currentcharcount = 0;
-unsigned lines = 1;
+bool doctype_already_seen = false;	// flag para saber se <!DOCTYPE html> já foi processado
+unsigned tabs = 0;	// quantidade de tabs para printar na tela
+unsigned tags = 0;	// quantidade de tags no documento
+unsigned charcount = 0;	// quantidade de caracteres visíveis
+unsigned currentcharcount = 0;	// quantidade atual de caractéres dentro de uma tag
+unsigned lines = 1;	// quantidade de linhas do documento
 
-void printtabs();
-void printtag(const char*);
-void handlecurrentcharcount();
+void print_tabs();
+void print_tag(const char*);
+void handle_current_char_count();
 %}
 
 %option noyywrap
-%x 								TEXT
+%x 								TEXT	
 %x 								COMMENT
 %x								STYLETAG
 
-whitespaces            			[ \t\n]+
-letter                 			[a-z]
-upercaseletters        			[A-Z]
+letter                 			[a-z] 
 number                 			[0-9]
-char                   			.+
-parenttags             			html|head|title|h[1-6]|body|p|b|i|table|tr|th|td|ul|li|a
-childlesstags          			br|img
+parent_tags             		html|head|title|h[1-6]|body|p|b|i|table|tr|th|td|ul|li|a
+childless_tags          		br|img
 attrs                  			{letter}+[{number}{letter}]*=\".*\"
-opentag                			\<{parenttags}(" "{attrs}*)?\>
-closetag               			<\/{parenttags}\>
-childlesstag           			\<{childlesstags}(" "{attrs}*)?\>
+open_tag                		\<{parent_tags}(" "{attrs}*)?\>
+close_tag               		<\/{parent_tags}\>
+childless_tag           		\<{childless_tags}(" "{attrs}*)?\>
 
 %%
 
-"<!DOCTYPE html>"											{ ; }
+"<!DOCTYPE html>"											{ 
+																if (!doctype_already_seen) 
+																	doctype_already_seen = true;
+																else 
+																	REJECT;
+															}
 
 <COMMENT,STYLETAG,INITIAL>\n								{ lines++; }
 
@@ -42,45 +45,41 @@ childlesstag           			\<{childlesstags}(" "{attrs}*)?\>
 <COMMENT>"-->"												{ BEGIN INITIAL; }
 <COMMENT>.													{ ; }
 
-"<style>"													{ BEGIN STYLETAG; printtag(YYText()); }
-<STYLETAG>"</style>"										{ BEGIN INITIAL; printtag(YYText()); }
+"<style>"													{ BEGIN STYLETAG; print_tag(YYText()); tags++; }
+<STYLETAG>"</style>"										{ BEGIN INITIAL; print_tag(YYText()); }
 <STYLETAG>.													{ ; }
 
 [ \t]                           							{ ; }
 
-{opentag}/" "												{ printtag(YYText()); tabs++; BEGIN TEXT; }
-{closetag}/" "												{ tags++; tabs--; printtag(YYText()); BEGIN TEXT; }
-{childlesstag}/" "                  						{ printtag(YYText()); tags++; BEGIN TEXT; }
-
-{opentag}                       							{ printtag(YYText()); tabs++; }
-{closetag}                      							{ tags++; tabs--; printtag(YYText()); }
-{childlesstag}                  							{ printtag(YYText()); tags++; }
+{open_tag}                       							{ print_tag(YYText()); tabs++; }
+{close_tag}                      							{ tags++; tabs--; print_tag(YYText()); }
+{childless_tag}                  							{ print_tag(YYText()); tags++; }
 
 .                               							{ BEGIN TEXT; currentcharcount++; charcount++; }
-<TEXT>{opentag}|{closetag}|{childlesstag}					{ yyless(0); handlecurrentcharcount(); BEGIN INITIAL; }
+<TEXT>{open_tag}|{close_tag}|{childless_tag}				{ yyless(0); handle_current_char_count(); BEGIN INITIAL; }
 <TEXT>"<!--"												{ yyless(0); BEGIN INITIAL; }
-<TEXT>\n													{ lines++; handlecurrentcharcount(); }
+<TEXT>\n													{ lines++; handle_current_char_count(); }
 <TEXT>.														{ currentcharcount++; charcount++; }
 
 %%
 
-void printtag(const char* tag) {
-	printtabs(); 
-	cout << tag << endl;
-}
-
-void handlecurrentcharcount() {
-	printtabs();
-	cout << "Texto[" << currentcharcount << ']' << endl;
-	currentcharcount = 0;
-}
-
-void printtabs() {
+void print_tabs() {
     for (int i = 0; i < tabs; i++) {
         cout << "|\t";
     }
 
     cout << "+--";
+}
+
+void print_tag(const char* tag) {
+	print_tabs(); 
+	cout << tag << endl;
+}
+
+void handle_current_char_count() {
+	print_tabs();
+	cout << "Texto[" << currentcharcount << ']' << endl;
+	currentcharcount = 0;
 }
 
 int main(int argc, char ** argv)
